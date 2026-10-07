@@ -8,6 +8,8 @@ J'ai lancé ThoughtAnchor pour m'aider, ainsi que les personnes avec un TDAH, à
 
 Ce projet a été **entièrement construit par Codex**, selon les exigences et la direction du responsable : code, interface, tests, documentation et préparation des paquets. Les composants tiers gardent leurs licences. La [licence MIT](../../LICENSE) autorise l'utilisation, la modification, la redistribution et l'usage commercial sans autorisation préalable ; conservez les mentions de droit d'auteur et de licence. Le logiciel est fourni en l'état.
 
+La première utilisation ouvre une page proposant huit langues, avec la langue système présélectionnée. Appuyez sur Commencer pour ouvrir le tableau ; le titre de l’exemple de promenade, ses trois cartes et le libellé du lien utilisent votre choix. La langue d’interface peut ensuite être modifiée dans les paramètres, sans réécrire les notes enregistrées. Cette page ne réapparaît pas lors d’une mise à jour pour les utilisateurs existants.
+
 ## Installation et utilisation
 
 - Windows 10/11 x64 : installateur, EXE portable ou ZIP. Après extraction du ZIP, lancez `ThoughtAnchor.exe`. WebView2 Runtime et .NET Framework 4.8 sont nécessaires. Fermer la fenêtre laisse l'application dans la zone de notification ; quittez par son menu. Les exécutables Windows ne sont pas signés.

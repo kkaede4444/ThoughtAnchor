@@ -8,6 +8,8 @@ I started ThoughtAnchor to help myself and people with ADHD organize scattered t
 
 This project was **built entirely by Codex** under the maintainer's direction, including implementation, interface, tests, documentation and packaging. Third-party open-source components retain their own licenses. The [MIT license](../../LICENSE) permits use, modification, redistribution and commercial use without prior permission; retain the copyright and license notices. The software is provided as is.
 
+First use opens a page with eight language choices, with the system language preselected. Choose Get started to open the board; the walking sample’s title, three cards and connection label use your chosen language. You can change the interface language later in Settings; saved notes keep their original text. Existing users do not see this page again when upgrading.
+
 ## Install
 
 - Windows 10/11 x64: choose the NSIS installer, portable EXE or portable ZIP. ZIP users run `ThoughtAnchor.exe`. Microsoft WebView2 Runtime and .NET Framework 4.8 are required. Closing the main window keeps the tray app running; exit through the tray menu. Windows binaries are unsigned.

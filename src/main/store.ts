@@ -149,7 +149,7 @@ export class Store {
   }
   private historical(c: Command): boolean {
     return (
-      !['capture', 'draft', 'settings', 'viewport', 'undo', 'redo'].includes(c.type) &&
+      !['capture', 'draft', 'settings', 'viewport', 'welcome', 'undo', 'redo'].includes(c.type) &&
       !(c.type === 'project' && c.action === 'select')
     )
   }

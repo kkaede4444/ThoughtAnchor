@@ -44,7 +44,7 @@ async function attach() {
   }
   assert.ok(mobile, 'Android UI WebView not found')
   mobile.on('pageerror', (e) => errors.push(e.message))
-  await mobile.waitForSelector('.mobile-header', { timeout: 20000 })
+  await mobile.waitForSelector('.mobile-header, .welcome', { timeout: 20000 })
   await mobile.evaluate(() => document.fonts.ready)
 }
 const snapshot = (page) => page.evaluate(() => window.desktop.snapshot())
@@ -210,6 +210,36 @@ try {
   if (installed) adb('uninstall', app)
   adb('install', '-r', path.resolve('android/app/build/outputs/apk/debug/app-debug.apk'))
   await attach()
+  await check(
+    'First-run eight-language chooser previews text and persists confirmation',
+    async () => {
+      await mobile.waitForSelector('.welcome')
+      assert.equal(await mobile.getByRole('radio').count(), 8)
+      const choices = [
+        ['zh-CN', '选择你的语言'],
+        ['zh-TW', '選擇你的語言'],
+        ['en-US', 'Choose your language'],
+        ['ja-JP', '言語を選んでください'],
+        ['ko-KR', '언어를 선택하세요'],
+        ['fr-FR', 'Choisissez votre langue'],
+        ['de-DE', 'Wähle deine Sprache'],
+        ['es-ES', 'Elige tu idioma']
+      ]
+      for (const [locale, heading] of choices) {
+        await mobile.locator(`input[value="${locale}"]`).check()
+        assert.equal(await mobile.locator('#welcome-heading').textContent(), heading)
+        assert.ok(await mobile.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
+      }
+      await mobile.screenshot({ path: path.join(directory, 'welcome-mobile.png'), fullPage: true })
+      await mobile.locator('input[value="zh-CN"]').check()
+      await mobile.locator('.welcome-start').click()
+      await mobile.waitForSelector('.mobile-header')
+      const workspace = (await snapshot(mobile)).workspace
+      assert.equal(workspace.settings.welcomeComplete, true)
+      assert.equal(workspace.settings.locale, 'zh-CN')
+      assert.equal(workspace.projects[0].title, '从散步开始的一篇随想')
+    }
+  )
   await check('Android native startup and phone auto layout', async () => {
     assert.equal((await snapshot(mobile)).workspace.settings.directCardDrawing, false)
     assert.equal(await mobile.evaluate(() => window.desktop.platform), 'android')
@@ -544,6 +574,9 @@ try {
       .find((p) => p.url().endsWith('/index.html'))
     assert.ok(desktop)
   })
+  await desktop.waitForSelector('.welcome', { timeout: 20000 })
+  await desktop.locator('input[value="zh-CN"]').check()
+  await desktop.locator('.welcome-start').click()
   await desktop.waitForSelector('.thought-card', { timeout: 20000 })
   await check('Actual Wi-Fi TLS pairing and bidirectional inbox sync', async () => {
     const pairing = await sync(desktop, 'pair')

@@ -2,6 +2,7 @@
 // This world has no access to the renderer's JavaScript globals or native filesystem.
 import { z } from 'zod'
 import { CommandSchema, AIRequestSchema, initialWorkspace } from '../shared/model'
+import { systemLocale } from '../shared/sample'
 import type {
   Workspace,
   Command,
@@ -83,7 +84,7 @@ function prepare(command: Command): Workspace {
     if (command.type === 'settings') endpoint(command.settings.provider)
     applyCommand(workspace, command)
     const historical =
-      !['capture', 'draft', 'settings', 'viewport'].includes(command.type) &&
+      !['capture', 'draft', 'settings', 'viewport', 'welcome'].includes(command.type) &&
       !(command.type === 'project' && command.action === 'select')
     if (historical && JSON.stringify(before) !== JSON.stringify(workspace)) {
       const coalesce =
@@ -117,7 +118,7 @@ function execute(action: string, args: any[]): unknown {
   if (action === 'validate') return validateWorkspace(args[0])
   if (action === 'initialize') {
     state = {
-      workspace: args[0] ? validateWorkspace(args[0]) : initialWorkspace(),
+      workspace: args[0] ? validateWorkspace(args[0]) : initialWorkspace(systemLocale(args[1])),
       undo: [],
       redo: []
     }

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { walkSamples } from './sample'
 
 const id = z.string().min(1).max(100)
 export const LocaleSchema = z.enum([
@@ -132,6 +133,7 @@ export const SettingsSchema = z
   .object({
     interfaceMode: z.enum(['auto', 'mobile', 'desktop']).default('auto'),
     directCardDrawing: z.boolean().default(false),
+    welcomeComplete: z.boolean().default(true),
     shortcut: z.string().min(1).max(100),
     sound: z.boolean(),
     reducedMotion: z.boolean(),
@@ -297,16 +299,27 @@ export function newProject(title = '一张新的思路纸'): Project {
     viewport: { x: 40, y: 40, zoom: 1 }
   }
 }
-export function initialWorkspace(): Workspace {
-  const p = newProject('从散步开始的一篇随想')
-  const a = textBlock('有时候，离开屏幕走一走，想法反而会浮上来。', 80, 90, 'sage')
-  const b = textBlock('街角的树影、听到的一句话，都可以先留成一片。', 430, 100, 'blue')
-  const c = textBlock('先把相关的片段靠在一起，再决定它们的顺序。', 310, 370, 'lavender')
-  a.title = '先留住'
-  b.title = '观察'
-  c.title = '慢慢拼起来'
+export function initialWorkspace(locale: Locale = 'zh-CN'): Workspace {
+  const sample = walkSamples[locale]
+  const p = newProject(sample.title)
+  const a = textBlock(sample.cards[0][1], 80, 90, 'sage')
+  const b = textBlock(sample.cards[1][1], 430, 100, 'blue')
+  const c = textBlock(sample.cards[2][1], 310, 370, 'lavender')
+  a.title = sample.cards[0][0]
+  b.title = sample.cards[1][0]
+  c.title = sample.cards[2][0]
   p.blocks = [a, b, c]
-  p.relations = [{ id: uid(), source: a.id, target: b.id, label: '让我想到' }]
+  p.relations = [
+    {
+      id: uid(),
+      source: a.id,
+      target: b.id,
+      label: sample.relation,
+      sourceHandle: 'right',
+      targetHandle: 'left',
+      routing: 'auto'
+    }
+  ]
   return {
     version: 2,
     activeProjectId: p.id,
@@ -316,16 +329,18 @@ export function initialWorkspace(): Workspace {
     settings: {
       interfaceMode: 'auto',
       directCardDrawing: false,
+      welcomeComplete: false,
       shortcut: 'CommandOrControl+Shift+Space',
       sound: false,
       reducedMotion: false,
-      locale: 'zh-CN',
+      locale,
       writing: AIOptionsSchema.omit({ locale: true }).parse({}),
       provider: presets.DeepSeek
     }
   }
 }
 export const CommandSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('welcome'), locale: LocaleSchema }).strict(),
   z
     .object({
       type: z.literal('card-ink-add'),

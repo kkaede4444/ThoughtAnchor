@@ -8,6 +8,8 @@ Ich habe ThoughtAnchor begonnen, damit ich selbst und Menschen mit ADHS verstreu
 
 Das Projekt wurde **vollständig von Codex erstellt**, nach den Anforderungen und der Produktidee des Betreuers: Implementierung, Oberfläche, Tests, Dokumentation und Paketierung. Drittanbieterkomponenten behalten ihre jeweiligen Lizenzen. Die [MIT-Lizenz](../../LICENSE) erlaubt Nutzung, Änderung, Weitergabe und kommerzielle Verwendung ohne vorherige Erlaubnis. Urheberrechts- und Lizenzhinweise müssen erhalten bleiben. Die Software wird ohne Gewähr bereitgestellt.
 
+Beim ersten Start erscheint eine Auswahl mit acht Sprachen; die Systemsprache ist vorausgewählt. Mit Loslegen öffnet sich das Board. Titel, drei Karten und Verbindungsbeschriftung des Spaziergang-Beispiels verwenden die gewählte Sprache. Später lässt sich die Oberflächensprache in den Einstellungen ändern; gespeicherte Notizen behalten ihren ursprünglichen Text. Bei Updates wird die Seite bestehenden Nutzern nicht erneut angezeigt.
+
 ## Installation und Bedienung
 
 - Windows 10/11 x64: Installationsprogramm, portable EXE oder ZIP. Nach dem Entpacken der ZIP `ThoughtAnchor.exe` starten. WebView2 Runtime und .NET Framework 4.8 werden benötigt. Nach dem Schließen bleibt die App im Infobereich; dort lässt sie sich beenden. Windows-Dateien sind nicht codesigniert.

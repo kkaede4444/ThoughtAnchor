@@ -256,9 +256,12 @@ describe('local network reconciliation', () => {
     content.projects[0].ink = [
       { id: 'pen', width: 3, color: '#292822', points: [{ x: 4, y: 6, pressure: 0.7 }] }
     ]
-    expect(JSON.stringify(content)).not.toMatch(/interfaceMode|viewport|shortcut|captureDraft/)
+    expect(JSON.stringify(content)).not.toMatch(
+      /interfaceMode|viewport|shortcut|captureDraft|welcomeComplete/
+    )
     const applied = applyShared(w, content)
     expect(applied.settings.interfaceMode).toBe('desktop')
+    expect(applied.settings.welcomeComplete).toBe(w.settings.welcomeComplete)
     expect(applied.projects[0].viewport).toEqual(w.projects[0].viewport)
     expect(applied.settings.locale).toBe('ja-JP')
     expect(applied.version).toBe(3)

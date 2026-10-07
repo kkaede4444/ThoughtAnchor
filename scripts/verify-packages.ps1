@@ -51,8 +51,16 @@ if (Test-Path -LiteralPath $sourcePath) {
       $stream = $entry.Open()
       $hash = [Security.Cryptography.SHA1]::Create()
       try {
-        $header = [Text.Encoding]::ASCII.GetBytes("blob $($entry.Length)`0")
-        $buffer.Write($header,0,$header.Length); $stream.CopyTo($buffer); $buffer.Position = 0
+        $stream.CopyTo($buffer)
+        $bytes = $buffer.ToArray()
+        # Git exports .bat with CRLF as declared in .gitattributes; blobs store LF.
+        if ($name.EndsWith('.bat')) {
+          $bytes = [Text.Encoding]::UTF8.GetBytes([Text.Encoding]::UTF8.GetString($bytes).Replace("`r`n", "`n"))
+        }
+        $buffer.SetLength(0)
+        $buffer.Position = 0
+        $header = [Text.Encoding]::ASCII.GetBytes("blob $($bytes.Length)`0")
+        $buffer.Write($header,0,$header.Length); $buffer.Write($bytes,0,$bytes.Length); $buffer.Position = 0
         $actual = [BitConverter]::ToString($hash.ComputeHash($buffer)).Replace('-', '').ToLowerInvariant()
         if ($actual -ne $expected[$name]) { throw "Source archive differs from Git: $name" }
       } finally { $stream.Dispose(); $buffer.Dispose(); $hash.Dispose() }

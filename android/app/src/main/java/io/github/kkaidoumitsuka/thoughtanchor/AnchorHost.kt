@@ -61,7 +61,7 @@ class AnchorHost(private val context: Context) {
                 try { workspace = domain("initialize", JSONArray().put(JSONObject(candidate.readText())) ) as JSONObject; if (candidate != workspaceFile) { recovery = "Recovered a local backup."; persist(workspace) }; break }
                 catch (_: Exception) { if (candidate == workspaceFile) { candidate.copyTo(File(folder,"workspace.damaged-${System.currentTimeMillis()}.json")); recovery = "The workspace was damaged. A preserved copy is available." } }
             }
-            if (!workspace.has("projects")) { workspace = domain("initialize", JSONArray().put(JSONObject.NULL)) as JSONObject; persist(workspace) }
+            if (!workspace.has("projects")) { workspace = domain("initialize", JSONArray().put(JSONObject.NULL).put(context.resources.configuration.locales[0].toLanguageTag())) as JSONObject; persist(workspace) }
             try { val f = File(folder,"secrets.json"); if (f.exists()) secrets = JSONObject(f.readText()) } catch (_: Exception) { recovery = "Saved keys could not be read. Save them again in Settings." }
             try { if (metaFile.exists()) metadata = JSONObject(metaFile.readText()) } catch (_: Exception) { error = "Pairing metadata could not be read. Pair again." }
             ready.complete(Unit)

@@ -12,6 +12,8 @@
 
 Windows requires WebView2 Runtime and .NET Framework 4.8; its binaries are unsigned. Android requires Android 8.0+ and an updated system WebView. AI adapters are validated with local mocks, without paid provider calls. macOS/iOS packages are not included.
 
+- 首次使用增加八语言选择页，预选系统语言，确认后生成所选语言的散步示例；既有笔记保留原文，升级不重复弹出。First use offers eight language choices and a matching walking sample; saved notes remain unchanged, and upgrades skip the welcome page.
+
 ## 0.4.1：可选的卡片直接绘图
 
 - 设置新增“直接在卡片上绘制”，默认关闭，旧数据升级也保持关闭；每台设备独立保存这个选择。

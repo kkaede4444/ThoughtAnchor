@@ -25,6 +25,7 @@ import { setLocale, t } from '../../shared/i18n'
 import { resolveInterface } from '../../shared/interface'
 import { MobileWorkbench } from './Mobile'
 import { chooseTool, previousTool, type ToolHistory } from '../../shared/tools'
+import { Welcome } from './Welcome'
 
 function paperSound(): void {
   try {
@@ -144,6 +145,17 @@ export function App(): React.JSX.Element {
   document.title = t(
     location.hash === '#capture' ? 'ThoughtAnchor · 留住闪念' : 'ThoughtAnchor · 思维拼图'
   )
+  if (!snapshot.workspace.settings.welcomeComplete)
+    return (
+      <Welcome
+        initialLocale={snapshot.workspace.settings.locale}
+        busy={pending > 0}
+        error={message}
+        onStart={(locale) => {
+          void run({ type: 'welcome', locale })
+        }}
+      />
+    )
   return (
     <WorkContext.Provider
       value={{

@@ -22,6 +22,10 @@ ThoughtAnchor 是一个支持 Windows 和 Android 的本地白板。想法可以
 
 ![ThoughtAnchor 工作台](docs/screenshots/workbench.png)
 
+首次使用会先显示八种语言的选择页，预选系统语言，点击“开始使用”后进入工作台。“从散步开始的一篇随想”的标题、三张卡片和连线说明使用所选语言。以后可在设置中切换界面语言，已保存的笔记保留原文；已有用户升级不重复显示选择页。
+
+![首次语言选择界面](docs/screenshots/welcome-language.png)
+
 ## 使用
 
 下载 Release 中的 Windows x64 安装包（`nsis.exe`）或免安装版（`portable.exe`），也可解压 `portable.zip` 后运行 `ThoughtAnchor.exe`。支持 Windows 10/11，需要系统 WebView2 Runtime 与 .NET Framework 4.8。关闭主窗口后驻留托盘，托盘菜单可退出。发布包暂未购买代码签名证书。

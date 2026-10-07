@@ -14,6 +14,7 @@ import {
   uid
 } from './model'
 import type { AIOptions, Port } from './model'
+import { walkSamples } from './sample'
 
 export function getProject(w: Workspace, id = w.activeProjectId): Project {
   const p = w.projects.find((p) => p.id === id)
@@ -293,6 +294,38 @@ function wrap(p: Project, ids: string[], title: string): Block {
   return group
 }
 export function applyCommand(w: Workspace, c: Exclude<Command, { type: 'undo' | 'redo' }>): void {
+  if (c.type === 'welcome') {
+    if (w.settings.welcomeComplete) return
+    const p = w.projects[0],
+      before = walkSamples[w.settings.locale],
+      after = walkSamples[c.locale]
+    // Only the pristine first-run sample may change language. Keep any authored work.
+    if (
+      w.projects.length === 1 &&
+      p.revision === 0 &&
+      p.title === before.title &&
+      p.blocks.length === 3 &&
+      !p.article.length &&
+      !p.draft &&
+      !(p.ink ?? []).length &&
+      p.relations.length === 1 &&
+      p.relations[0].label === before.relation &&
+      p.blocks.every(
+        (b, i) =>
+          b.title === before.cards[i][0] && b.text === before.cards[i][1] && !(b.ink ?? []).length
+      )
+    ) {
+      p.title = after.title
+      p.blocks.forEach((b, i) => {
+        b.title = after.cards[i][0]
+        b.text = after.cards[i][1]
+      })
+      p.relations[0].label = after.relation
+    }
+    w.settings.locale = c.locale
+    w.settings.welcomeComplete = true
+    return
+  }
   if (c.type === 'capture') {
     if (!c.text.trim()) throw new Error(t('写下一点内容再放入收件盒。'))
     w.inbox.push({ id: uid(), text: c.text, createdAt: new Date().toISOString(), color: 'sage' })

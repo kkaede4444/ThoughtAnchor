@@ -1592,3 +1592,46 @@ button.primary:hover {
 :lang(zh-TW) {
   font-family: 'Microsoft JhengHei', 'PMingLiU', serif;
 }
+
+.welcome {
+  position: relative;
+  isolation: isolate;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: max(32px, var(--safe-top, 0px)) 24px max(32px, var(--safe-bottom, 0px));
+  overflow-y: auto;
+  background: var(--paper);
+}
+.welcome-paper {
+  position: relative;
+  width: min(100%, 540px);
+  padding: 36px;
+  border: 1px solid var(--rule);
+  border-radius: 22px 18px 24px 16px;
+  background: #fffdfa;
+  box-shadow: 0 14px 50px #29282209;
+}
+.welcome-paper > .paint { width: 220px; height: 170px; inset: -12px -12px auto auto; opacity: .26; }
+.welcome-paper header { display: flex; align-items: center; gap: 12px; margin-bottom: 30px; font-family: 'Noto Serif SC', serif; font-size: 21px; }
+.welcome-paper header svg { width: 38px; height: 38px; }
+.welcome-paper h1 { font-family: 'Noto Serif SC', serif; font-size: 29px; font-weight: 500; margin: 12px 0; }
+.welcome-intro, .welcome-hint { color: var(--muted); font-size: 14px; line-height: 1.7; }
+.welcome-languages { padding: 0; margin: 26px 0 18px; border: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.welcome-languages legend { font-size: 12px; color: var(--muted); padding: 0 0 10px; }
+.welcome-languages label { display: flex; gap: 9px; align-items: center; min-height: 50px; padding: 11px 12px; border: 1px solid var(--rule); border-radius: 10px; cursor: pointer; font-size: 15px; transition: background .18s, border-color .18s; }
+.welcome-languages label:hover { background: #f5f4ed; }
+.welcome-languages label.chosen { background: #edf0e5; border-color: #a5b393; }
+.welcome-languages input { width: 15px; height: 15px; margin: 0; flex: none; accent-color: #667958; }
+.welcome-languages span { flex: 1; }
+.welcome-languages svg { opacity: 0; flex: none; color: #667958; }
+.welcome-languages .chosen svg { opacity: 1; }
+.welcome-hint { font-size: 12px; }
+.welcome-start { width: 100%; min-height: 48px; margin-top: 14px; justify-content: center; font-size: 15px; }
+.welcome-error { color: #984c3a; font-size: 13px; }
+@media (max-width: 560px) {
+  .welcome { padding-left: 18px; padding-right: 18px; }
+  .welcome-paper { padding: 26px 20px; }
+  .welcome-paper h1 { font-size: 25px; }
+  .welcome-languages label { padding: 11px 9px; gap: 7px; }
+}

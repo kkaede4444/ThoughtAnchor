@@ -221,7 +221,7 @@ namespace ThoughtAnchor {
         return;
       }
       if (invalid) recovery = "无法读取原文件和备份。原文件已保留，请打开数据目录检查。";
-      workspace = (JObject)await Domain("initialize", (object)null);
+      workspace = (JObject)await Domain("initialize", null, System.Globalization.CultureInfo.CurrentUICulture.Name);
       diskText = File.Exists(filename) ? File.ReadAllText(filename, Encoding.UTF8) : null;
       await Persist(workspace, true);
     }
@@ -308,7 +308,7 @@ namespace ThoughtAnchor {
           if (shortcut != previousShortcut && previousShortcut != null) RegisterShortcut(previousShortcut);
           throw;
         }
-        if (action == "command" && (string)args[0]["type"] == "settings") {
+        if (action == "command" && ((string)args[0]["type"] == "settings" || (string)args[0]["type"] == "welcome")) {
           if (shortcutId != 0 && recovery == "捕捉快捷键被占用，请在设置中修改。") recovery = null;
           await UpdateLanguage();
         }
