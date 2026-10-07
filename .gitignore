@@ -1,0 +1,11 @@
+node_modules/
+out/
+release/
+build/*.png
+build/*.ico
+build/third-party-licenses.txt
+coverage/
+*.log
+*.tmp
+.env*
+.local/

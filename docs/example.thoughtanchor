@@ -1,0 +1,86 @@
+{
+  "format": "thoughtanchor",
+  "project": {
+    "id": "1e94ac0b-bce1-456f-802d-32b82f508cac",
+    "title": "从散步开始的一篇随想",
+    "revision": 5,
+    "blocks": [
+      {
+        "id": "014bfe9d-a476-4ba3-b431-7e974440f78c",
+        "kind": "text",
+        "title": "先留住",
+        "text": "有时候，离开屏幕走一走，想法反而会浮上来。",
+        "color": "sage",
+        "x": 20,
+        "y": 68,
+        "width": 264,
+        "height": 180,
+        "children": [],
+        "collapsed": false,
+        "parentId": "3f50d828-2b5e-414d-9ba7-e901cb00b530"
+      },
+      {
+        "id": "c9d2728d-2c9d-4867-998a-955a90f1e6d4",
+        "kind": "text",
+        "title": "观察",
+        "text": "街角的树影、听到的一句话，都可以先留成一片。",
+        "color": "blue",
+        "x": 20,
+        "y": 268,
+        "width": 264,
+        "height": 180,
+        "children": [],
+        "collapsed": false,
+        "parentId": "3f50d828-2b5e-414d-9ba7-e901cb00b530"
+      },
+      {
+        "id": "216fa2e1-f79b-4506-955a-b1dd9cf6d920",
+        "kind": "text",
+        "title": "慢慢拼起来",
+        "text": "先把相关的片段靠在一起，再决定它们的顺序。",
+        "color": "lavender",
+        "x": 310,
+        "y": 370,
+        "width": 264,
+        "height": 180,
+        "children": [],
+        "collapsed": false
+      },
+      {
+        "id": "3f50d828-2b5e-414d-9ba7-e901cb00b530",
+        "kind": "group",
+        "title": "一组相关的想法",
+        "text": "",
+        "color": "sage",
+        "x": 60,
+        "y": 30,
+        "width": 304,
+        "height": 468,
+        "children": [
+          "014bfe9d-a476-4ba3-b431-7e974440f78c",
+          "c9d2728d-2c9d-4867-998a-955a90f1e6d4"
+        ],
+        "collapsed": true
+      }
+    ],
+    "relations": [
+      {
+        "id": "779aed51-4ff4-4ea9-b207-f1fa7f6c73a4",
+        "source": "014bfe9d-a476-4ba3-b431-7e974440f78c",
+        "target": "c9d2728d-2c9d-4867-998a-955a90f1e6d4",
+        "label": "让我想到"
+      }
+    ],
+    "article": [
+      "216fa2e1-f79b-4506-955a-b1dd9cf6d920",
+      "3f50d828-2b5e-414d-9ba7-e901cb00b530"
+    ],
+    "connectors": [],
+    "viewport": {
+      "x": 40,
+      "y": 40,
+      "zoom": 1
+    }
+  },
+  "version": 1
+}
