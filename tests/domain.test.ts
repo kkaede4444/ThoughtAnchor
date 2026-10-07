@@ -124,7 +124,8 @@ describe('same content across board and article', () => {
     const { p, a, b } = fixture()
     const file = { format: 'thoughtanchor', version: 1, project: p }
     expect(importFile(file).project.blocks.length).toBe(3)
-    expect(() => importFile({ ...file, version: 2 })).toThrow()
+    expect(importFile({ ...file, version: 2 }).version).toBe(2)
+    expect(() => importFile({ ...file, version: 4 })).toThrow()
     a.kind = 'group'
     b.kind = 'group'
     a.text = ''

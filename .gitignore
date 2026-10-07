@@ -9,3 +9,25 @@ coverage/
 *.tmp
 .env*
 .local/
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.key
+*.pem
+workspace*.json
+keys.json*
+keys-native.json*
+secrets.json*
+sync-native.json*
+sync-commit.json*
+sync.json*
+sync-pending.json*
+Local State
+EBWebView/
+keystore.properties
+android/.gradle/
+android/local.properties
+android/**/build/
+android/app/src/main/assets/
+android/app/src/main/res/drawable/icon.png

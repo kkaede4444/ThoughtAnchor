@@ -1,21 +1,37 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ArrowDown, ArrowUp, Check, Download, Plus, Sparkles, X } from 'lucide-react'
-import { AIResult } from '../../shared/model'
-import { aiBasis, blockText, getBlock, getProject, pairBasis } from '../../shared/domain'
-import { Loader, Paint } from './Art'
+import { WritingResult, AIRequest } from '../../shared/model'
+import {
+  articleSourceBasis,
+  blockText,
+  getBlock,
+  getProject,
+  writingBasis
+} from '../../shared/domain'
+import { t } from '../../shared/i18n'
+import { Loader } from './Art'
 import { useWork } from './context'
+import { WritingOptions } from './WritingOptions'
 
 export function Article(): React.JSX.Element {
   const { snapshot, run, notify, selected } = useWork()
-  const p = getProject(snapshot.workspace)
-  const [result, setResult] = useState<AIResult | null>(null)
+  const p = getProject(snapshot.workspace),
+    settings = snapshot.workspace.settings
+  const options = { ...settings.writing, locale: settings.locale }
+  const [result, setResult] = useState<WritingResult | null>(null)
   const [busy, setBusy] = useState(false)
-  const valid = result && result.basis === aiBasis(p)
-  async function generate(task: 'connectors' | 'order'): Promise<void> {
+  const [draftText, setDraftText] = useState(p.draft?.text || '')
+  const [editing, setEditing] = useState(false)
+  useEffect(() => {
+    if (!editing) setDraftText(p.draft?.text || '')
+  }, [p.draft?.text, editing])
+  const valid =
+    result && result.basis === writingBasis(p, options) && (!p.draft || draftText === p.draft.text)
+  async function generate(task: AIRequest['task'], fromAssemblyPreview = false): Promise<void> {
     setBusy(true)
-    setResult(null)
+    if (!fromAssemblyPreview) setResult(null)
     try {
-      setResult(await window.desktop.ai(task, p.id))
+      setResult(await window.desktop.ai({ task, projectId: p.id, options, fromAssemblyPreview }))
     } catch (e) {
       notify((e as Error).message)
     } finally {
@@ -23,96 +39,88 @@ export function Article(): React.JSX.Element {
     }
   }
   const reorder = (index: number, offset: number): void => {
-    const next = [...p.article]
-    const to = index + offset
-    if (to < 0 || to >= next.length) return
-    ;[next[index], next[to]] = [next[to], next[index]]
-    void run({ type: 'article', projectId: p.id, ids: next }, '换一个顺序看看')
+    const ids = [...p.article],
+      to = index + offset
+    if (to < 0 || to >= ids.length) return
+    ;[ids[index], ids[to]] = [ids[to], ids[index]]
+    void run({ type: 'article', projectId: p.id, ids })
+  }
+  const exportText = async (format: 'md' | 'txt', source: 'original' | 'draft'): Promise<void> => {
+    try {
+      if (await window.desktop.exportArticle(p.id, format, source)) notify(t('文章已导出'))
+    } catch (e) {
+      notify((e as Error).message)
+    }
   }
   return (
     <aside className="article-panel">
       <div className="panel-heading">
         <div>
-          <span className="eyebrow">ASSEMBLE</span>
-          <h2>慢慢成文</h2>
+          <span className="eyebrow">{t('成文')}</span>
+          <h2>{t('慢慢成文')}</h2>
         </div>
-        <span className="count-pill">{p.article.length} 板块</span>
+        <span className="count-pill">{p.article.length}</span>
       </div>
-      <p className="panel-intro">已经拼好的板块，直接接着用。原文始终留在自己的片段里。</p>
+      <p className="panel-intro">{t('原片段保留，生成稿独立保存。')}</p>
       <div className="article-actions">
         <button
           disabled={!selected.length}
           onClick={() => {
-            void run(
-              { type: 'article', projectId: p.id, ids: [...p.article, ...selected] },
-              '板块接进了文章'
-            )
+            void run({ type: 'article', projectId: p.id, ids: [...p.article, ...selected] })
           }}
         >
           <Plus size={14} />
-          加入选中
+          {t('加入选中')}
         </button>
         <button
           onClick={() => {
-            void run(
-              {
-                type: 'article',
-                projectId: p.id,
-                ids: p.blocks.filter((b) => !b.parentId).map((b) => b.id)
-              },
-              '整张纸有了一个顺序'
-            )
+            void run({
+              type: 'article',
+              projectId: p.id,
+              ids: p.blocks.filter((b) => !b.parentId).map((b) => b.id)
+            })
           }}
         >
-          加入全部板块
+          {t('加入全部板块')}
         </button>
       </div>
       <div className="article-list">
         {!p.article.length && (
-          <div className="article-empty">
-            <Paint color="lavender" />
-            <h3>从一个板块开始</h3>
-            <p>选中白板上的片段或整个组合，再点「加入选中」。</p>
-          </div>
+          <p className="article-empty">{t('选中片段或组合，再点「加入选中」。')}</p>
         )}
         {p.article.map((id, index) => {
           const b = getBlock(p, id)
-          const next = p.article[index + 1]
-          const connector = p.connectors.find((c) => c.leftId === id && c.rightId === next)
           return (
             <div
               key={id}
               className="article-entry"
               draggable
-              onDragStart={(e) => {
-                e.dataTransfer.setData('text/plain', id)
-                e.dataTransfer.effectAllowed = 'move'
-              }}
+              onDragStart={(e) => e.dataTransfer.setData('text/plain', id)}
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => {
                 e.preventDefault()
                 const source = e.dataTransfer.getData('text/plain')
                 if (!p.article.includes(source) || source === id) return
-                const order = p.article.filter((x) => x !== source)
-                order.splice(order.indexOf(id), 0, source)
-                void run({ type: 'article', projectId: p.id, ids: order }, '板块换到了这里')
+                const ids = p.article.filter((x) => x !== source)
+                ids.splice(ids.indexOf(id), 0, source)
+                void run({ type: 'article', projectId: p.id, ids })
               }}
             >
               <div className="article-entry-heading">
-                <span className="entry-index">{String(index + 1).padStart(2, '0')}</span>
-                <h3>{b.title || (b.kind === 'text' ? '一片想法' : '一个板块')}</h3>
-                <button title="上移" disabled={index === 0} onClick={() => reorder(index, -1)}>
+                <span className="entry-index">{index + 1}</span>
+                <h3>{b.title || t('一片想法')}</h3>
+                <button title={t('上移')} disabled={index === 0} onClick={() => reorder(index, -1)}>
                   <ArrowUp size={13} />
                 </button>
                 <button
-                  title="下移"
+                  title={t('下移')}
                   disabled={index === p.article.length - 1}
                   onClick={() => reorder(index, 1)}
                 >
                   <ArrowDown size={13} />
                 </button>
                 <button
-                  title="移出成文"
+                  title={t('移出成文')}
                   onClick={() => {
                     void run({
                       type: 'article',
@@ -124,34 +132,7 @@ export function Article(): React.JSX.Element {
                   <X size={13} />
                 </button>
               </div>
-              <p className="article-original">{blockText(p, id) || '（这个板块还空着）'}</p>
-              {connector && (
-                <div className="connector">
-                  <span>过渡句</span>
-                  <textarea
-                    aria-label="编辑过渡句"
-                    defaultValue={connector.text}
-                    key={connector.text}
-                    onBlur={(e) => {
-                      if (e.target.value !== connector.text)
-                        void run({
-                          type: 'connector',
-                          projectId: p.id,
-                          ...connector,
-                          text: e.target.value
-                        })
-                    }}
-                  />
-                  <button
-                    title="删除过渡句"
-                    onClick={() => {
-                      void run({ type: 'connector', projectId: p.id, ...connector, text: '' })
-                    }}
-                  >
-                    <X size={13} />
-                  </button>
-                </div>
-              )}
+              <p className="article-original">{blockText(p, id) || t('（这个板块还空着）')}</p>
             </div>
           )
         })}
@@ -159,28 +140,44 @@ export function Article(): React.JSX.Element {
       <div className="ai-area">
         <div className="ai-label">
           <Sparkles size={14} />
-          <span>轻一点的协助</span>
-          <span className="provider-name">{snapshot.workspace.settings.provider.preset}</span>
+          <span>{t('AI 成文')}</span>
+          <span className="provider-name">{settings.provider.preset}</span>
         </div>
+        <WritingOptions
+          value={settings}
+          change={(next) => {
+            void run({ type: 'settings', settings: next })
+          }}
+        />
         <div className="article-actions">
           <button
-            disabled={busy || p.article.length < 2}
+            disabled={busy || !p.article.length}
             onClick={() => {
-              void generate('connectors')
+              void generate('assemble')
             }}
           >
-            只补过渡句
+            {t('拼接')}
           </button>
           <button
-            disabled={busy || p.article.length < 2}
+            disabled={busy || (!p.article.length && !p.draft)}
             onClick={() => {
-              void generate('order')
+              void generate('polish')
             }}
           >
-            建议一个顺序
+            {t('美化')}
+          </button>
+          <button
+            disabled={busy || !p.article.length}
+            onClick={() => {
+              void generate('assemble-polish')
+            }}
+          >
+            {t('拼接＋美化')}
           </button>
         </div>
-        <p className="fine-print">点击后，仅将成文区的板块发送给已选接口。</p>
+        <p className="fine-print">
+          {t('仅发送成文区内容；美化使用当前稿件，输出语言跟随界面设置。')}
+        </p>
         {busy && (
           <>
             <Loader />
@@ -190,113 +187,104 @@ export function Article(): React.JSX.Element {
                 void window.desktop.cancelAI()
               }}
             >
-              取消等待
+              {t('取消等待')}
             </button>
           </>
         )}
-        {result && !valid && <p className="notice">内容已改变，这次建议已失效。重新生成即可。</p>}
-        {valid && result.task === 'order' && (
+        {result && !valid && <p className="notice">{t('内容或生成选项已改变，请重新生成。')}</p>}
+        {valid && result && (
           <div className="ai-suggestion">
-            <p>{result.reason}</p>
-            <ol>
-              {result.orderIds.map((id) => (
-                <li key={id}>{getBlock(p, id).title || blockText(p, id).slice(0, 25)}</li>
-              ))}
-            </ol>
+            <h3>{t('生成稿预览')}</h3>
+            {result.warning && <p className="notice">{t(result.warning)}</p>}
+            {result.warning && (
+              <button
+                disabled={busy}
+                onClick={() => {
+                  void generate('polish', true)
+                }}
+              >
+                {t('重试美化')}
+              </button>
+            )}
+            <div className="draft-preview">{result.draft.text}</div>
             <button
               className="primary"
-              onClick={() => {
-                if (aiBasis(p) !== result.basis) return
-                void run(
-                  {
-                    type: 'article',
-                    projectId: p.id,
-                    ids: result.orderIds,
-                    expectedBasis: result.basis
-                  },
-                  '采用了这个顺序'
+              disabled={busy}
+              onClick={async () => {
+                if (
+                  await run(
+                    {
+                      type: 'article-draft',
+                      projectId: p.id,
+                      draft: result.draft,
+                      expectedBasis: result.basis
+                    },
+                    t('成文稿已保存')
+                  )
                 )
-                setResult(null)
+                  setResult(null)
               }}
             >
               <Check size={14} />
-              采用顺序
+              {t('采用稿件')}
             </button>
             <button className="text-button" onClick={() => setResult(null)}>
-              放下这个建议
+              {t('放下这个建议')}
             </button>
-          </div>
-        )}
-        {valid && result.task === 'connectors' && (
-          <div className="ai-suggestions">
-            {!result.connectors.length && (
-              <p className="notice">这些板块直接相接就很好，没有新增过渡句。</p>
-            )}
-            {result.connectors.map((c) => (
-              <div className="ai-suggestion" key={`${c.leftId}:${c.rightId}`}>
-                <span className="fine-print">
-                  {p.article.indexOf(c.leftId) + 1} → {p.article.indexOf(c.rightId) + 1}
-                </span>
-                <p>{c.text}</p>
-                <button
-                  onClick={() => {
-                    void run(
-                      {
-                        type: 'connector',
-                        projectId: p.id,
-                        ...c,
-                        basis: pairBasis(p, c.leftId, c.rightId),
-                        expectedBasis: result.basis
-                      },
-                      '接上了一句过渡'
-                    )
-                    setResult({ ...result, connectors: result.connectors.filter((x) => x !== c) })
-                  }}
-                >
-                  <Check size={13} />
-                  接上
-                </button>
-                <button
-                  className="text-button"
-                  onClick={() =>
-                    setResult({ ...result, connectors: result.connectors.filter((x) => x !== c) })
-                  }
-                >
-                  略过
-                </button>
-              </div>
-            ))}
           </div>
         )}
       </div>
+      {p.draft && (
+        <section className="draft-section">
+          <h3>{t('当前成文稿')}</h3>
+          {p.draft.sourceBasis !== articleSourceBasis(p) && (
+            <p className="notice">{t('原片段已变化，当前稿件仍保留。')}</p>
+          )}
+          <textarea
+            className="draft-editor"
+            aria-label={t('编辑成文稿')}
+            value={draftText}
+            maxLength={300000}
+            onFocus={() => setEditing(true)}
+            onChange={(e) => {
+              setDraftText(e.target.value)
+              void run({
+                type: 'article-draft',
+                projectId: p.id,
+                draft: { ...p.draft!, text: e.target.value }
+              })
+            }}
+            onBlur={() => {
+              setEditing(false)
+            }}
+          />
+        </section>
+      )}
       <div className="article-export">
-        <button
-          disabled={!p.article.length}
-          onClick={() => {
-            void window.desktop
-              .exportArticle(p.id, 'md')
-              .then((file) => {
-                if (file) notify('Markdown 已导出')
-              })
-              .catch((e) => notify(e.message))
-          }}
-        >
-          <Download size={14} />
-          Markdown
-        </button>
-        <button
-          disabled={!p.article.length}
-          onClick={() => {
-            void window.desktop
-              .exportArticle(p.id, 'txt')
-              .then((file) => {
-                if (file) notify('纯文本已导出')
-              })
-              .catch((e) => notify(e.message))
-          }}
-        >
-          纯文本
-        </button>
+        {(['md', 'txt'] as const).map((format) => (
+          <button
+            key={format}
+            disabled={!p.article.length}
+            onClick={() => {
+              void exportText(format, 'original')
+            }}
+          >
+            <Download size={14} />
+            {t('原文')} {format.toUpperCase()}
+          </button>
+        ))}
+        {(['md', 'txt'] as const).map((format) => (
+          <button
+            key={format}
+            disabled={!p.draft}
+            onClick={() => {
+              void exportText(format, 'draft')
+            }}
+          >
+            <Download size={14} />
+            {t('稿件')} {format.toUpperCase()}
+          </button>
+        ))}
       </div>
     </aside>
   )

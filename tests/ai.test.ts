@@ -1,6 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
-import { buildRequest, endpoint, keyScope, parseResult, requestAI } from '../src/main/ai'
-import { initialWorkspace, presets } from '../src/shared/model'
+import {
+  buildRequest,
+  endpoint,
+  keyScope,
+  parseResult,
+  requestAI,
+  writingRequest,
+  writingJSON
+} from '../src/main/ai'
+import { AIOptionsSchema, initialWorkspace, presets } from '../src/shared/model'
 function fixture() {
   const p = initialWorkspace().projects[0]
   p.article = p.blocks.map((b) => b.id)
@@ -10,6 +18,79 @@ function response(content: unknown) {
   return { choices: [{ message: { content: JSON.stringify(content) } }] }
 }
 describe('bounded AI adapters', () => {
+  it.each([
+    ['GLM', 'https://open.bigmodel.cn/api/paas/v4/chat/completions'],
+    ['Kimi', 'https://api.moonshot.cn/v1/chat/completions'],
+    ['Qwen', 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions'],
+    ['MiMo', 'https://api.xiaomimimo.com/v1/chat/completions'],
+    ['MiniMax', 'https://api.minimax.cn/anthropic/v1/messages'],
+    ['Grok', 'https://api.x.ai/v1/chat/completions'],
+    ['腾讯混元', 'https://tokenhub.tencentmaas.com/v1/chat/completions']
+  ])('routes %s assembly and polish with native auth and parses only answers', (name, url) => {
+    const p = fixture(),
+      provider = presets[name]
+    const instruction = {
+      projectId: p.id,
+      task: 'polish' as const,
+      options: AIOptionsSchema.parse({})
+    }
+    for (const task of ['assemble', 'polish'] as const) {
+      const wire = writingRequest(provider, 'fixture-key', instruction, p, task)
+      expect(wire.url.href).toBe(url)
+      expect(wire.url.href).not.toContain('fixture-key')
+      expect(wire.headers[provider.protocol === 'anthropic' ? 'x-api-key' : 'Authorization']).toBe(
+        provider.protocol === 'anthropic' ? 'fixture-key' : 'Bearer fixture-key'
+      )
+      expect(wire.body).toHaveProperty('model', provider.model)
+      if (['Kimi', 'MiMo', '腾讯混元'].includes(name))
+        expect(wire.body).not.toHaveProperty('response_format')
+      if (name === 'Kimi') expect(wire.body).toHaveProperty('thinking.type', 'disabled')
+      if (name === 'Qwen') expect(wire.body).toHaveProperty('enable_thinking', false)
+    }
+    const payload = { text: 'A valid draft.' }
+    const wire =
+      provider.protocol === 'anthropic'
+        ? {
+            content: [
+              { type: 'thinking', thinking: 'Not an answer.' },
+              { type: 'text', text: JSON.stringify(payload) }
+            ]
+          }
+        : {
+            choices: [
+              {
+                message: { reasoning_content: 'Not an answer.', content: JSON.stringify(payload) },
+                finish_reason: 'stop'
+              }
+            ]
+          }
+    expect(writingJSON(provider.protocol, wire)).toEqual(payload)
+    expect(buildRequest(provider, 'fixture-key', 'order', p).url.href).toBe(url)
+  })
+  it('does not attach vendor parameters based on a misleading label or another model', () => {
+    const p = fixture()
+    for (const name of ['Kimi', 'Qwen']) {
+      const body = buildRequest(
+        { ...presets[name], baseUrl: 'https://example.com/v1' },
+        'fixture-key',
+        'order',
+        p
+      ).body
+      expect(body).not.toHaveProperty('thinking')
+      expect(body).not.toHaveProperty('enable_thinking')
+    }
+    expect(
+      buildRequest({ ...presets.Qwen, model: 'some-other-model' }, 'fixture-key', 'order', p).body
+    ).not.toHaveProperty('enable_thinking')
+    expect(keyScope(presets.Grok)).not.toBe(keyScope(presets.Groq))
+    expect(
+      new Set(
+        ['GLM', 'Kimi', 'Qwen', 'MiMo', 'MiniMax', 'Grok', '腾讯混元'].map((n) =>
+          keyScope(presets[n])
+        )
+      ).size
+    ).toBe(7)
+  })
   it('uses native headers and bodies for all three protocol families', () => {
     const p = fixture()
     const openai = buildRequest(presets.DeepSeek, 'private-test-key', 'order', p)

@@ -1,0 +1,13 @@
+ThoughtAnchor Android native dependencies
+
+Kotlin and kotlinx.coroutines — JetBrains
+AndroidX Activity, Core, WebKit, WorkManager — The Android Open Source Project
+ZXing Android Embedded — JourneyApps
+ZXing Core — ZXing authors
+Gradle Wrapper — Gradle Inc.
+
+These components are licensed under the Apache License, Version 2.0.
+https://www.apache.org/licenses/LICENSE-2.0
+
+The React interface dependencies and Noto Serif SC font licenses are bundled
+separately as third-party-licenses.txt and font-OFL.txt in APK assets.

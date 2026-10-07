@@ -1,9 +1,9 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { promises as fs } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { Store } from '../src/main/store'
-import { getProject } from '../src/shared/domain'
+import { aiBasis, getProject, writingBasis } from '../src/shared/domain'
 const directories: string[] = []
 async function fixture() {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'thoughtanchor-test-'))
@@ -13,9 +13,89 @@ async function fixture() {
   return store
 }
 afterEach(async () => {
-  for (const dir of directories.splice(0)) await fs.rm(dir, { recursive: true, force: true })
+  vi.restoreAllMocks()
+  for (const dir of directories.splice(0)) {
+    const resolved = path.resolve(dir)
+    if (
+      !resolved.startsWith(path.resolve(os.tmpdir()) + path.sep) ||
+      !path.basename(resolved).startsWith('thoughtanchor-test-')
+    )
+      throw new Error('Unsafe test cleanup')
+    await fs.rm(resolved, { recursive: true, force: true })
+  }
 })
 describe('durable command queue', () => {
+  it('does not reset or overwrite valid v1 data if its migration backup cannot be saved', async () => {
+    const s = await fixture(),
+      raw = JSON.parse(await fs.readFile(s.filename, 'utf8'))
+    raw.version = 1
+    const original = JSON.stringify(raw)
+    await fs.writeFile(s.filename, original)
+    vi.spyOn(fs, 'copyFile').mockRejectedValue(
+      Object.assign(new Error('backup blocked'), { code: 'EACCES' })
+    )
+    const reopened = new Store(s.directory)
+    await expect(reopened.load()).rejects.toThrow('backup blocked')
+    expect(await fs.readFile(s.filename, 'utf8')).toBe(original)
+    expect(await fs.readdir(s.directory)).not.toContain('workspace.json.v1-backup')
+  })
+  it('backs up v1 before migration and persists v2 on reopen', async () => {
+    const s = await fixture(),
+      raw = JSON.parse(await fs.readFile(s.filename, 'utf8'))
+    raw.version = 1
+    delete raw.settings.locale
+    delete raw.settings.writing
+    raw.projects.forEach((p: any) => {
+      delete p.draft
+    })
+    const original = JSON.stringify(raw)
+    await fs.writeFile(s.filename, original)
+    const migrated = new Store(s.directory)
+    await migrated.load()
+    expect(migrated.workspace.version).toBe(2)
+    expect(await fs.readFile(s.filename + '.v1-backup', 'utf8')).toBe(original)
+    expect(JSON.parse(await fs.readFile(s.filename, 'utf8')).version).toBe(2)
+    const reopened = new Store(s.directory)
+    await reopened.load()
+    expect(reopened.workspace).toEqual(migrated.workspace)
+  })
+  it('persists an editable article draft and undoes adoption without modifying cards', async () => {
+    const s = await fixture(),
+      p = getProject(s.workspace),
+      original = JSON.stringify(p.blocks)
+    await s.command({ type: 'article', projectId: p.id, ids: p.blocks.map((b) => b.id) })
+    const current = getProject(s.workspace),
+      options = { ...s.workspace.settings.writing, locale: s.workspace.settings.locale }
+    await s.command({
+      type: 'article-draft',
+      projectId: p.id,
+      expectedBasis: writingBasis(current, options),
+      draft: { text: '独立稿件🙂', sourceBasis: aiBasis(current), task: 'assemble', options }
+    })
+    await s.command({ type: 'undo' })
+    expect(getProject(s.workspace).draft).toBeNull()
+    await s.command({ type: 'redo' })
+    const reopened = new Store(s.directory)
+    await reopened.load()
+    expect(getProject(reopened.workspace).draft?.text).toBe('独立稿件🙂')
+    expect(JSON.stringify(getProject(reopened.workspace).blocks)).toBe(original)
+  })
+  it('undoes a child drag-out as one command', async () => {
+    const s = await fixture(),
+      p = getProject(s.workspace),
+      id = p.blocks[0].id
+    await s.command({
+      type: 'group',
+      projectId: p.id,
+      ids: p.blocks.slice(0, 2).map((b) => b.id),
+      title: 'group'
+    })
+    const parent = getProject(s.workspace).blocks.find((b) => b.id === id)!.parentId
+    await s.command({ type: 'drop', projectId: p.id, id, x: 1300, y: 900 })
+    expect(getProject(s.workspace).blocks.find((b) => b.id === id)!.parentId).toBeUndefined()
+    await s.command({ type: 'undo' })
+    expect(getProject(s.workspace).blocks.find((b) => b.id === id)!.parentId).toBe(parent)
+  })
   it('saves 20 simultaneous captures exactly once and restores after reopening', async () => {
     const store = await fixture()
     await Promise.all(

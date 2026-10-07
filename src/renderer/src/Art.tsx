@@ -1,3 +1,4 @@
+import { t, tr } from '../../shared/i18n'
 import { useId } from 'react'
 
 export function ArtDefs(): React.JSX.Element {
@@ -80,7 +81,7 @@ export function Paint({ color = 'sage' }: { color?: string }): React.JSX.Element
   )
 }
 export function Loader({
-  label = '正在把片段之间的空隙想清楚…'
+  label = t('正在把片段之间的空隙想清楚…')
 }: {
   label?: string
 }): React.JSX.Element {

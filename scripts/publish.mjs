@@ -49,6 +49,8 @@ const tag = `v${pkg.version}`
 const assets = [
   `ThoughtAnchor-${pkg.version}-x64-nsis.exe`,
   `ThoughtAnchor-${pkg.version}-x64-portable.exe`,
+  `ThoughtAnchor-${pkg.version}-x64-portable.zip`,
+  `ThoughtAnchor-${pkg.version}-android.apk`,
   `ThoughtAnchor-${pkg.version}-source.zip`,
   'SHA256SUMS.txt'
 ]
@@ -73,8 +75,32 @@ const localTag = spawnSync('git', ['rev-parse', `${tag}^{commit}`], {
 })
 if (localTag.status !== 0 || localTag.stdout.trim() !== commit)
   throw new Error('Local release tag differs from source commit')
-const clean = spawnSync('git', ['diff', '--quiet', 'HEAD'], { windowsHide: true })
-if (clean.status !== 0) throw new Error('Commit all tracked changes before release')
+const audit = JSON.parse(await readFile('.local/security-source.json', 'utf8'))
+const packages = JSON.parse(
+  (await readFile(`release/LOCAL_VERIFY-${pkg.version}.json`, 'utf8')).replace(/^\uFEFF/, '')
+)
+if (
+  audit.commit !== commit ||
+  audit.findings.length ||
+  packages.commit !== commit ||
+  !packages.archives.some((a) => a.archive.endsWith('-source.zip'))
+)
+  throw new Error('Run source and package checks against the committed release before publishing')
+for (const [name, local] of localAssets) {
+  if (name === 'SHA256SUMS.txt') continue
+  const checked = packages.packages.find((p) => p.name === name)
+  if (!checked || checked.sha256 !== local.digest || checked.bytes !== local.size)
+    throw new Error(`Package changed after verification: ${name}`)
+}
+const clean = spawnSync('git', ['status', '--porcelain'], { encoding: 'utf8', windowsHide: true })
+if (clean.status !== 0 || clean.stdout.trim())
+  throw new Error('Commit all pending source files before release')
+const localBranch = spawnSync('git', ['branch', '--show-current'], {
+  encoding: 'utf8',
+  windowsHide: true
+})
+if (localBranch.status !== 0 || localBranch.stdout.trim() !== 'main')
+  throw new Error('Publish the reviewed main branch')
 async function verifyRelease(repo, release, allowDraft = false) {
   if (release.draft && !allowDraft) throw new Error('Release is still a draft')
   const branch = await api(`/repos/${full}/commits/main`)
@@ -119,6 +145,11 @@ try {
 }
 if (repo.private)
   throw new Error('Existing repository is private; not changing visibility automatically.')
+if (repo.description !== pkg.description)
+  repo = await api(`/repos/${full}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ description: pkg.description })
+  })
 const remotes = spawnSync('git', ['remote', 'get-url', 'origin'], {
   encoding: 'utf8',
   windowsHide: true
@@ -155,7 +186,9 @@ try {
       name: `ThoughtAnchor ${pkg.version}`,
       draft: true,
       prerelease: false,
-      body: await readFile('docs/release-notes.md', 'utf8')
+      body:
+        (await readFile('docs/release-notes.md', 'utf8')).split(/\n## /)[0] +
+        `\n\n[Documentation in eight languages](https://github.com/${full}/blob/${tag}/docs/README.md) · [MIT license](https://github.com/${full}/blob/${tag}/LICENSE) · [Security checks](https://github.com/${full}/blob/${tag}/docs/verification.md)`
     })
   })
 }
@@ -180,7 +213,9 @@ for (const name of assets) {
         ? 'application/vnd.microsoft.portable-executable'
         : name.endsWith('.zip')
           ? 'application/zip'
-          : 'text/plain',
+          : name.endsWith('.apk')
+            ? 'application/vnd.android.package-archive'
+            : 'text/plain',
       'Content-Length': String(local.size)
     },
     body: createReadStream(`release/${name}`),

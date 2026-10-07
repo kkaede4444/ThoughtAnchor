@@ -1,3 +1,4 @@
+import { t, tr } from '../shared/i18n'
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import { Command, CommandSchema, Project, Workspace, initialWorkspace } from '../shared/model'
@@ -24,17 +25,34 @@ export class Store {
     await fs.mkdir(this.directory, { recursive: true })
     let invalid = false
     for (const filename of [this.filename, `${this.filename}.bak`, `${this.filename}.bak2`]) {
+      let raw: { version?: number }, validated: Workspace
       try {
-        this.workspace = validateWorkspace(JSON.parse(await fs.readFile(filename, 'utf8')))
-        if (invalid) this.recovery = '上次的文件不完整，已从最近的备份恢复。损坏文件已保留。'
-        return
+        raw = JSON.parse(await fs.readFile(filename, 'utf8'))
+        validated = validateWorkspace(raw)
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
           invalid = true
           if (filename === this.filename)
             await fs.copyFile(filename, `${this.filename}.damaged-${Date.now()}`).catch(() => {})
         }
+        continue
       }
+      this.workspace = validated
+      // A backup or migration write failure must stop loading, never reset valid data.
+      if (raw.version === 1) {
+        const backup = `${this.filename}.v1-backup`
+        try {
+          await fs.copyFile(filename, backup, fs.constants.COPYFILE_EXCL)
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
+          const previous = await fs.readFile(backup, 'utf8').catch(() => null)
+          if (previous !== (await fs.readFile(filename, 'utf8')))
+            await fs.copyFile(filename, `${backup}-${Date.now()}`, fs.constants.COPYFILE_EXCL)
+        }
+        await this.persist(this.workspace)
+      }
+      if (invalid) this.recovery = '上次的文件不完整，已从最近的备份恢复。损坏文件已保留。'
+      return
     }
     if (invalid) this.recovery = '无法读取原文件和备份。原文件已保留，请打开数据目录检查。'
     await this.persist(this.workspace)
@@ -102,13 +120,18 @@ export class Store {
           this.undoStack.push(entry)
         }
       } else if (this.historical(c)) {
-        const coalesce = c.type === 'edit' ? `${c.projectId}:${c.id}` : undefined
+        const coalesce =
+          c.type === 'edit'
+            ? `${c.projectId}:${c.id}`
+            : c.type === 'article-draft' && !c.expectedBasis
+              ? `${c.projectId}:article-draft`
+              : undefined
         const last = this.undoStack.at(-1)
         if (
           coalesce &&
           last?.coalesce === coalesce &&
           Date.now() - last.at < 900 &&
-          c.type === 'edit'
+          (c.type === 'edit' || c.type === 'article-draft')
         ) {
           last.after.projects = last.after.projects.map((p) =>
             p.id === c.projectId
@@ -164,7 +187,7 @@ export class Store {
       const next = structuredClone(before)
       const project: Project = structuredClone(file.project)
       project.id = crypto.randomUUID()
-      project.title = `${project.title.slice(0, 190)}（导入）`
+      project.title = tr`${project.title.slice(0, 190)}（导入）`
       project.revision = 0
       next.projects.push(project)
       next.activeProjectId = project.id

@@ -17,10 +17,14 @@ import {
 import { Command, Snapshot } from '../../shared/model'
 import { canSubmitCapture, getBlock, getProject } from '../../shared/domain'
 import { ArtDefs, Loader, Mark, Paint } from './Art'
-import { Board } from './Board'
+import { Board, BoardHandle } from './Board'
 import { Article } from './Article'
 import { Settings } from './Settings'
-import { WorkContext, useWork } from './context'
+import { WorkContext, useWork, type InkTool, type CardInkDraft } from './context'
+import { setLocale, t } from '../../shared/i18n'
+import { resolveInterface } from '../../shared/interface'
+import { MobileWorkbench } from './Mobile'
+import { chooseTool, previousTool, type ToolHistory } from '../../shared/tools'
 
 function paperSound(): void {
   try {
@@ -44,15 +48,29 @@ export function App(): React.JSX.Element {
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [pending, setPending] = useState(0)
-  const [selected, updateSelected] = useState<string[]>([])
+  const [tools, setTools] = useState<ToolHistory>({ current: 'move', previous: 'select' })
+  const inkTool = tools.current
+  const setInkTool = useCallback((tool: InkTool) => setTools((h) => chooseTool(h, tool)), [])
+  const switchInkTool = useCallback(() => setTools(previousTool), [])
+  const [cardInkDraft, setCardInkDraft] = useState<CardInkDraft | null>(null)
+  const [selection, updateSelected] = useState<{ projectId: string; ids: string[] }>({
+    projectId: '',
+    ids: []
+  })
   const [joins, setJoins] = useState(0)
-  const setSelected = useCallback(
-    (ids: string[]) =>
-      updateSelected((previous) =>
-        previous.length === ids.length && previous.every((id, i) => id === ids[i]) ? previous : ids
-      ),
-    []
-  )
+  const setSelected = useCallback((input: string[]) => {
+    const project = snapshotRef.current && getProject(snapshotRef.current.workspace)
+    if (!project) return
+    const valid = new Set(project.blocks.map((b) => b.id))
+    const ids = [...new Set(input)].filter((id) => valid.has(id)).sort()
+    return updateSelected((previous) =>
+      previous.projectId === project.id &&
+      previous.ids.length === ids.length &&
+      previous.ids.every((id, i) => id === ids[i])
+        ? previous
+        : { projectId: project.id, ids }
+    )
+  }, [])
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const snapshotRef = useRef(snapshot)
   snapshotRef.current = snapshot
@@ -106,15 +124,53 @@ export function App(): React.JSX.Element {
         <ArtDefs />
         <Mark />
         <h1>ThoughtAnchor</h1>
-        {error ? <p role="alert">{error}</p> : <Loader label="铺开一张思路纸…" />}
+        {error ? <p role="alert">{error}</p> : <Loader label={t('铺开一张思路纸…')} />}
       </div>
     )
+  setLocale(snapshot.workspace.settings.locale)
+  const active = getProject(snapshot.workspace)
+  const selected =
+    selection.projectId === active.id
+      ? selection.ids.filter((id) => active.blocks.some((b) => b.id === id))
+      : []
+  document.documentElement.lang = snapshot.workspace.settings.locale
+  const mode = resolveInterface(
+    snapshot.workspace.settings.interfaceMode,
+    window.desktop.platform,
+    window.desktop.tablet
+  )
+  document.documentElement.dataset.interface = mode
+  document.documentElement.dataset.platform = window.desktop.platform
+  document.title = t(
+    location.hash === '#capture' ? 'ThoughtAnchor · 留住闪念' : 'ThoughtAnchor · 思维拼图'
+  )
   return (
-    <WorkContext.Provider value={{ snapshot, run, notify, selected, setSelected }}>
-      <div className={`app ${snapshot.workspace.settings.reducedMotion ? 'reduce-motion' : ''}`}>
+    <WorkContext.Provider
+      value={{
+        snapshot,
+        run,
+        notify,
+        selected,
+        setSelected,
+        inkTool,
+        setInkTool,
+        switchInkTool,
+        cardInkDraft,
+        setCardInkDraft
+      }}
+    >
+      <div
+        className={`app interface-${mode} ${snapshot.workspace.settings.reducedMotion ? 'reduce-motion' : ''}`}
+      >
         <ArtDefs />
         <div className="paper-texture" aria-hidden="true" />
-        {location.hash === '#capture' ? <Capture /> : <Workbench pending={pending} joins={joins} />}
+        {location.hash === '#capture' ? (
+          <Capture />
+        ) : mode === 'mobile' ? (
+          <MobileWorkbench pending={pending} />
+        ) : (
+          <Workbench pending={pending} joins={joins} />
+        )}
         {message && (
           <div className="toast" role="status">
             <span className="toast-mark">✓</span>
@@ -169,19 +225,19 @@ function Capture(): React.JSX.Element {
       <header>
         <Mark />
         <div>
-          <span className="eyebrow">CATCH A THOUGHT</span>
-          <h1>先留住这一片</h1>
+          <span className="eyebrow">{t('随时捕捉')}</span>
+          <h1>{t('先留住这一片')}</h1>
         </div>
         <span className="capture-saved" role="status">
-          {saving ? '正在保存…' : saved ? '✓ 已留住' : '留在全局收件盒'}
+          {saving ? t('正在保存…') : saved ? t('✓ 已留住') : t('留在全局收件盒')}
         </span>
       </header>
       <div className="capture-paper">
         <Paint color="sage" />
         <textarea
           ref={input}
-          aria-label="快速捕捉内容"
-          placeholder="不必想完整，先写下来。"
+          aria-label={t('快速捕捉内容')}
+          placeholder={t('不必想完整，先写下来。')}
           value={value}
           onChange={(e) => {
             setValue(e.target.value)
@@ -212,7 +268,7 @@ function Capture(): React.JSX.Element {
         />
       </div>
       <footer>
-        <p>Enter 留住并继续 · Shift+Enter 换行 · Esc 收起</p>
+        <p>{t('Enter 留住并继续 · Shift+Enter 换行 · Esc 收起')}</p>
         <button
           className="primary"
           disabled={saving || !value.trim()}
@@ -221,13 +277,13 @@ function Capture(): React.JSX.Element {
           }}
         >
           <Check size={15} />
-          留住
+          {t('留住')}
         </button>
       </footer>
     </main>
   )
 }
-function InboxPanel(): React.JSX.Element {
+export function InboxPanel(): React.JSX.Element {
   const { snapshot, run } = useWork()
   const [text, setText] = useState('')
   const composing = useRef(false)
@@ -238,7 +294,7 @@ function InboxPanel(): React.JSX.Element {
     if (busy || !text.trim()) return
     setBusy(true)
     const sent = text
-    const result = await run({ type: 'capture', text: sent }, '这片想法已留住')
+    const result = await run({ type: 'capture', text: sent }, t('这片想法已留住'))
     if (result) setText((current) => (current === sent ? '' : current))
     setBusy(false)
   }
@@ -246,16 +302,16 @@ function InboxPanel(): React.JSX.Element {
     <aside className="inbox-panel">
       <div className="panel-heading">
         <div>
-          <span className="eyebrow">FRAGMENTS</span>
-          <h2>闪念收件盒</h2>
+          <span className="eyebrow">{t('闪念')}</span>
+          <h2>{t('闪念收件盒')}</h2>
         </div>
         <span className="count-pill">{notes.length}</span>
       </div>
-      <p className="panel-intro">还没想好放哪，也可以先留下。</p>
+      <p className="panel-intro">{t('还没想好放哪，也可以先留下。')}</p>
       <div className="quick-input">
         <textarea
-          aria-label="收件盒快速输入"
-          placeholder="一个词、一句话、几段文字…"
+          aria-label={t('收件盒快速输入')}
+          placeholder={t('一个词、一句话、几段文字…')}
           value={text}
           onChange={(e) => setText(e.target.value)}
           onCompositionStart={() => {
@@ -265,6 +321,7 @@ function InboxPanel(): React.JSX.Element {
             composing.current = false
           }}
           onKeyDown={(e) => {
+            if (window.desktop.platform === 'android') return
             if (
               canSubmitCapture(
                 e.key,
@@ -278,7 +335,7 @@ function InboxPanel(): React.JSX.Element {
           }}
         />
         <button
-          title="留到收件盒"
+          title={t('留到收件盒')}
           disabled={busy || !text.trim()}
           onClick={() => {
             void submit()
@@ -287,13 +344,19 @@ function InboxPanel(): React.JSX.Element {
           <Plus size={18} />
         </button>
       </div>
-      <p className="fine-print">Enter 留住，Shift+Enter 换行</p>
+      <p className="fine-print">
+        {window.desktop.platform === 'android'
+          ? t('点击加号留住闪念，Enter 换行。')
+          : t('Enter 留住，Shift+Enter 换行')}
+      </p>
       <div className="inbox-list">
         {notes.length === 0 ? (
           <div className="inbox-empty">
             <span>✳</span>
-            <p>想到一点，就留一点。</p>
-            <p className="fine-print">全局快捷键也能捕捉。</p>
+            <p>{t('想到一点，就留一点。')}</p>
+            {window.desktop.platform === 'windows' && (
+              <p className="fine-print">{t('全局快捷键也能捕捉。')}</p>
+            )}
           </div>
         ) : (
           [...notes].reverse().map((n) => (
@@ -312,19 +375,20 @@ function InboxPanel(): React.JSX.Element {
                         x: 100 - p.viewport.x / p.viewport.zoom,
                         y: 100 - p.viewport.y / p.viewport.zoom
                       },
-                      '这片想法落到了纸上'
+                      t('这片想法落到了纸上')
                     )
                   }}
                 >
-                  放到纸上 <span>↗</span>
+                  {t('放到纸上')}
+                  <span>↗</span>
                 </button>
                 <button
                   className="icon-button"
-                  title="删除收件盒片段"
+                  title={t('删除收件盒片段')}
                   onClick={() => {
                     void run(
                       { type: 'inbox', projectId: p.id, ids: [n.id], action: 'delete' },
-                      '片段已移除，可撤销'
+                      t('片段已移除，可撤销')
                     )
                   }}
                 >
@@ -348,29 +412,31 @@ function InboxPanel(): React.JSX.Element {
                 x: 80,
                 y: 80
               },
-              '把所有闪念摊开了'
+              t('把所有闪念摊开了')
             )
           }}
         >
-          全部摊到这张纸上
+          {t('全部摊到这张纸上')}
         </button>
       )}
-      <button
-        className="capture-launch"
-        onClick={() => {
-          void window.desktop.captureWindow()
-        }}
-      >
-        <Inbox size={14} />
-        <span>随时捕捉</span>
-        <kbd>
-          {snapshot.workspace.settings.shortcut
-            .replace('CommandOrControl', 'Ctrl')
-            .replace('Control', 'Ctrl')
-            .replace('Shift', '⇧')
-            .replaceAll('+', ' ')}
-        </kbd>
-      </button>
+      {window.desktop.platform === 'windows' && (
+        <button
+          className="capture-launch"
+          onClick={() => {
+            void window.desktop.captureWindow()
+          }}
+        >
+          <Inbox size={14} />
+          <span>{t('随时捕捉')}</span>
+          <kbd>
+            {snapshot.workspace.settings.shortcut
+              .replace('CommandOrControl', 'Ctrl')
+              .replace('Control', 'Ctrl')
+              .replace('Shift', '⇧')
+              .replaceAll('+', ' ')}
+          </kbd>
+        </button>
+      )}
     </aside>
   )
 }
@@ -385,6 +451,7 @@ function Workbench({ pending, joins }: { pending: number; joins: number }): Reac
   const [projects, setProjects] = useState(false)
   const [renaming, setRenaming] = useState(false)
   const [name, setName] = useState(p.title)
+  const board = useRef<BoardHandle>(null)
   useEffect(() => setName(p.title), [p.title])
   useEffect(() => {
     setSelected([])
@@ -413,7 +480,7 @@ function Workbench({ pending, joins }: { pending: number; joins: number }): Reac
       }
       if (e.key === 'Delete' && selected.length) {
         e.preventDefault()
-        void run({ type: 'delete', projectId: p.id, ids: selected }, '片段已移除，可撤销')
+        void run({ type: 'delete', projectId: p.id, ids: selected }, t('片段已移除，可撤销'))
         setSelected([])
       }
     }
@@ -433,7 +500,7 @@ function Workbench({ pending, joins }: { pending: number; joins: number }): Reac
             <input
               className="project-name-input"
               autoFocus
-              aria-label="思路纸名称"
+              aria-label={t('思路纸名称')}
               value={name}
               onChange={(e) => setName(e.target.value)}
               onBlur={() => {
@@ -469,12 +536,12 @@ function Workbench({ pending, joins }: { pending: number; joins: number }): Reac
               <div className="menu-rule" />
               <button
                 onClick={() => {
-                  void run({ type: 'project', action: 'create', title: '一张新的思路纸' })
+                  void run({ type: 'project', action: 'create', title: t('一张新的思路纸') })
                   setProjects(false)
                 }}
               >
                 <Plus size={14} />
-                新建思路纸
+                {t('新建思路纸')}
               </button>
               <button
                 onClick={() => {
@@ -482,27 +549,30 @@ function Workbench({ pending, joins }: { pending: number; joins: number }): Reac
                   setProjects(false)
                 }}
               >
-                重命名当前纸
+                {t('重命名当前纸')}
               </button>
               <button
                 disabled={w.projects.length < 2}
                 onClick={() => {
-                  void run({ type: 'project', action: 'delete', id: p.id }, '思路纸已移除，可撤销')
+                  void run(
+                    { type: 'project', action: 'delete', id: p.id },
+                    t('思路纸已移除，可撤销')
+                  )
                   setProjects(false)
                 }}
               >
-                删除当前纸
+                {t('删除当前纸')}
               </button>
             </div>
           )}
         </div>
         <span className={`save-status ${pending ? 'saving' : ''}`} role="status">
           <span />
-          {pending ? '落笔中…' : '已留在本机'}
+          {pending ? t('落笔中…') : t('已留在本机')}
         </span>
         <div className="topbar-actions">
           <button
-            title="导入思路纸"
+            title={t('导入思路纸')}
             onClick={() => {
               void window.desktop.importProject().catch((e) => notify(e.message))
             }}
@@ -510,19 +580,19 @@ function Workbench({ pending, joins }: { pending: number; joins: number }): Reac
             <Upload size={16} />
           </button>
           <button
-            title="导出思路纸"
+            title={t('导出思路纸')}
             onClick={() => {
               void window.desktop
                 .exportProject(p.id)
                 .then((file) => {
-                  if (file) notify('思路纸已导出')
+                  if (file) notify(t('思路纸已导出'))
                 })
                 .catch((e) => notify(e.message))
             }}
           >
             <Download size={16} />
           </button>
-          <button title="设置" onClick={() => setSettings(true)}>
+          <button title={t('设置')} onClick={() => setSettings(true)}>
             <Settings2 size={17} />
           </button>
         </div>
@@ -533,14 +603,35 @@ function Workbench({ pending, joins }: { pending: number; joins: number }): Reac
         </div>
       )}
       <div className="work-toolbar">
+        <button
+          disabled={!snapshot.canUndo}
+          title={t('撤销 Ctrl+Z')}
+          aria-label={t('撤销 Ctrl+Z')}
+          onClick={() => {
+            void run({ type: 'undo' }, t('回到上一步'))
+          }}
+        >
+          <Undo2 size={16} />
+        </button>
+        <button
+          disabled={!snapshot.canRedo}
+          title={t('重做 Ctrl+Y')}
+          aria-label={t('重做 Ctrl+Y')}
+          onClick={() => {
+            void run({ type: 'redo' }, t('重新接上这一步'))
+          }}
+        >
+          <Redo2 size={16} />
+        </button>
+        <div className="toolbar-divider" />
         <div className="view-buttons">
           <button className={inbox ? 'active' : ''} onClick={() => setInbox(!inbox)}>
             <Inbox size={15} />
-            闪念
+            {t('闪念')}
           </button>
           <button className={article ? 'active' : ''} onClick={() => setArticle(!article)}>
             <BookOpen size={15} />
-            成文
+            {t('成文')}
           </button>
         </div>
         <div className="toolbar-divider" />
@@ -548,43 +639,43 @@ function Workbench({ pending, joins }: { pending: number; joins: number }): Reac
           disabled={!selected.length}
           onClick={() => {
             void run(
-              { type: 'group', projectId: p.id, ids: selected, title: '一组相关的想法' },
-              '几片想法成了一个板块'
+              { type: 'group', projectId: p.id, ids: selected, title: t('一组相关的想法') },
+              t('几片想法成了一个板块')
             )
             setSelected([])
           }}
         >
           <Layers2 size={15} />
-          归组
+          {t('归组')}
         </button>
         <button
           disabled={!one || one.kind === 'text'}
           onClick={() => {
             if (one)
-              void run({ type: 'ungroup', projectId: p.id, id: one.id }, '板块拆开了，原文都在')
+              void run({ type: 'ungroup', projectId: p.id, id: one.id }, t('板块拆开了，原文都在'))
             setSelected([])
           }}
         >
-          拆开
+          {t('拆开')}
         </button>
         <button
           disabled={!one || one.kind !== 'text'}
-          title="按空行拆成片段"
+          title={t('按空行拆成片段')}
           onClick={() => {
             if (one)
               void run(
                 { type: 'split', projectId: p.id, id: one.id, separator: 'paragraph' },
-                '每一段有了自己的位置'
+                t('每一段有了自己的位置')
               )
           }}
         >
-          按段拆分
+          {t('按段拆分')}
         </button>
         <button
           disabled={!selected.length}
-          title="删除选中片段（可撤销）"
+          title={t('删除选中片段（可撤销）')}
           onClick={() => {
-            void run({ type: 'delete', projectId: p.id, ids: selected }, '片段已移除，可撤销')
+            void run({ type: 'delete', projectId: p.id, ids: selected }, t('片段已移除，可撤销'))
             setSelected([])
           }}
         >
@@ -592,26 +683,23 @@ function Workbench({ pending, joins }: { pending: number; joins: number }): Reac
         </button>
         <div className="template-control">
           <button onClick={() => setTemplates(!templates)}>
-            借一个框架
+            {t('借一个框架')}
             <ChevronDown size={13} />
           </button>
           {templates && (
             <div className="popover template-menu">
-              <p>框架只提供空位，你决定放什么。</p>
+              <p>{t('框架只提供空位，你决定放什么。')}</p>
               {(
                 [
-                  ['clarify', '把困惑摊开', '卡点 → 线索 → 解释 → 下一步'],
-                  ['write', '一篇文章的骨架', '观点 → 理由 → 例子 → 收束'],
-                  ['plan', '从想法走向行动', '目标 → 路径 → 约束 → 行动']
+                  ['clarify', t('把困惑摊开'), t('卡点 → 线索 → 解释 → 下一步')],
+                  ['write', t('一篇文章的骨架'), t('观点 → 理由 → 例子 → 收束')],
+                  ['plan', t('从想法走向行动'), t('目标 → 路径 → 约束 → 行动')]
                 ] as const
               ).map(([id, title, detail]) => (
                 <button
                   key={id}
                   onClick={() => {
-                    void run(
-                      { type: 'template', projectId: p.id, template: id },
-                      '框架铺好了，慢慢往里放'
-                    )
+                    void board.current?.addTemplate(id)
                     setTemplates(false)
                   }}
                 >
@@ -625,39 +713,26 @@ function Workbench({ pending, joins }: { pending: number; joins: number }): Reac
         <div className="toolbar-spacer" />
         {joins > 0 && (
           <span className="join-count" key={joins}>
-            ✳ 接上了 {joins} 小步
+            {t('✳ 接上了')}
+            {joins}
+            {t('小步')}
           </span>
         )}
-        <button
-          disabled={!snapshot.canUndo}
-          title="撤销 Ctrl+Z"
-          onClick={() => {
-            void run({ type: 'undo' }, '回到上一步')
-          }}
-        >
-          <Undo2 size={16} />
-        </button>
-        <button
-          disabled={!snapshot.canRedo}
-          title="重做 Ctrl+Y"
-          onClick={() => {
-            void run({ type: 'redo' }, '重新接上这一步')
-          }}
-        >
-          <Redo2 size={16} />
-        </button>
       </div>
       <div className="workspace">
         {inbox && <InboxPanel />}
-        <Board />
+        <Board key={`board:${p.id}`} ref={board} />
         {article && <Article key={p.id} />}
       </div>
       <footer className="app-footer">
         <span>
-          {p.blocks.filter((b) => b.kind === 'text').length} 片想法 ·{' '}
-          {p.blocks.filter((b) => b.kind === 'group').length} 个板块 · {p.relations.length} 条联系
+          {p.blocks.filter((b) => b.kind === 'text').length}
+          {t('片想法 ·')} {p.blocks.filter((b) => b.kind === 'group').length}
+          {t('个板块 ·')}
+          {p.relations.length}
+          {t('条联系')}
         </span>
-        <span>先让想法有地方待着。</span>
+        <span>{t('先让想法有地方待着。')}</span>
       </footer>
       {settings && <Settings close={() => setSettings(false)} />}
     </>

@@ -1,20 +1,22 @@
 {
   "name": "thoughtanchor",
-  "version": "0.1.0",
-  "description": "把闪念留住，把思路拼起来。A local-first thinking puzzle board.",
-  "main": "out/main/index.js",
+  "version": "0.5.0",
+  "description": "让散乱的想法有处安放。A local-first board for scattered thoughts and ADHD, designed to make organizing take less patience.",
   "author": "KKaidouMitsuka",
   "license": "MIT",
   "scripts": {
-    "dev": "electron-vite dev",
-    "build": "npm run icons && npm run typecheck && electron-vite build",
+    "build:android": "node scripts/android-build.mjs",
+    "test:android": "node scripts/android-test.mjs",
+    "dev": "npm run build && node scripts/native-run.mjs",
+    "build": "npm run icons && npm run typecheck && vite build && node scripts/native-build.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "smoke": "electron . --smoke-test",
+    "smoke": "npm run test:native",
     "format": "prettier --write src tests scripts docs *.json *.ts *.md .github",
     "icons": "node scripts/icons.mjs && node scripts/licenses.mjs",
-    "package": "npm run build && electron-builder --win nsis portable --x64",
-    "postinstall": "electron-builder install-app-deps"
+    "package": "npm run build && node scripts/native-package.mjs",
+    "test:native": "node scripts/native-test.mjs",
+    "security": "node scripts/security.mjs"
   },
   "dependencies": {
     "zod": "^3.25.0"
@@ -22,68 +24,22 @@
   "devDependencies": {
     "@fontsource/noto-serif-sc": "^5.3.0",
     "@types/node": "^24.0.0",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^5.0.0",
     "@xyflow/react": "^12.12.0",
-    "electron": "44.6.0",
-    "electron-builder": "26.15.3",
-    "electron-vite": "5.0.0",
+    "esbuild": "^0.28.2",
     "lucide-react": "^0.468.0",
+    "playwright-core": "^1.63.0",
     "png-to-ico": "^3.0.1",
     "prettier": "^3.9.9",
+    "qrcode": "^1.5.4",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "sharp": "^0.35.5",
     "typescript": "^5.9.0",
     "vite": "^7.0.0",
     "vitest": "^5.0.3"
-  },
-  "overrides": {
-    "@electron/get": "^5.1.0"
-  },
-  "build": {
-    "appId": "io.github.thoughtanchor.desktop",
-    "productName": "ThoughtAnchor",
-    "directories": {
-      "output": "release",
-      "buildResources": "build"
-    },
-    "files": [
-      "out/**/*",
-      "package.json"
-    ],
-    "asar": true,
-    "extraResources": [
-      {
-        "from": "build/third-party-licenses.txt",
-        "to": "licenses/third-party-licenses.txt"
-      },
-      {
-        "from": "LICENSE",
-        "to": "licenses/ThoughtAnchor-MIT.txt"
-      }
-    ],
-    "win": {
-      "icon": "build/icon.ico",
-      "target": [
-        "nsis",
-        "portable"
-      ],
-      "signExecutable": false
-    },
-    "nsis": {
-      "artifactName": "ThoughtAnchor-${version}-${arch}-nsis.${ext}",
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "installerLanguages": [
-        "zh_CN",
-        "en_US"
-      ]
-    },
-    "portable": {
-      "artifactName": "ThoughtAnchor-${version}-${arch}-portable.${ext}"
-    }
   }
 }
